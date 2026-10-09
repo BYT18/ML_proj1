@@ -1,0 +1,172 @@
+\documentclass[10pt,conference,compsocconf]{IEEEtran}
+
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+
+\begin{document}
+\title{Predicting Coronary Heart Disease from Lifestyle Survey Data\\with Regularized Logistic Regression}
+
+\author{
+  Team members (fill in)\\
+  \textit{CS-433 Machine Learning, EPFL, Switzerland}
+}
+
+\maketitle
+
+\begin{abstract}
+We predict whether a respondent of the 2015 Behavioral Risk Factor
+Surveillance System (BRFSS) has been diagnosed with coronary heart disease or
+myocardial infarction (MICHD) from 321 survey answers. Using only NumPy, we
+compare linear and logistic regression baselines and build a feature pipeline
+that one-hot encodes categorical answers, keeps missingness as information,
+cleans survey answer codes and discretizes numeric variables. Combined with
+$L_2$-regularized logistic regression solved by Newton's method and an
+F1-optimal decision threshold, our model reaches an F1 score of
+$0.440\pm0.008$ in 5-fold cross-validation. An ablation study shows that
+choosing the decision threshold matters far more than any feature
+engineering step: it raises F1 from 0.27 to 0.44.
+\end{abstract}
+
+\section{Introduction}
+Cardiovascular diseases are a leading cause of death worldwide, and
+identifying at-risk individuals from cheap survey data could support
+prevention. The task is binary classification: given a respondent's answers,
+predict MICHD ($y=1$) or not ($y=-1$). The data contain 328{,}135 training and
+109{,}379 test respondents. Only 8.8\% of training respondents are positive,
+and the competition metric is the F1 score of the positive class. Both facts
+shape our design choices.
+
+\section{Data and Feature Engineering}
+\label{sec:features}
+\textbf{Exploratory analysis.} Of the 321 columns, 239 contain missing values
+and 147 are more than half missing. This is mostly by design: BRFSS skips
+follow-up questions when they do not apply (e.g.\ diabetes questions for
+non-diabetics). 261 columns have at most 60 distinct values and encode
+categorical answers. Raw questions use special codes (e.g.\ 77 = ``don't
+know'', 99 = ``refused'', 88 = ``none'') that would distort a numeric
+treatment. The features most correlated with the label are general health,
+age, employment status (retired), high blood pressure and diabetes.
+
+\textbf{Pipeline.} All statistics below are fitted on training data only and
+re-fitted inside every cross-validation fold.
+\begin{enumerate}
+\item \emph{Column filtering:} we drop 18 survey bookkeeping columns
+(interview date, sequence numbers, sampling weights, phone screening) as well
+as constant columns.
+\item \emph{Categorical columns} ($\le 30$ distinct values) are one-hot encoded,
+keeping every category that appears in $\ge 0.1\%$ of training rows. We add
+an indicator for ``missing'' because a skipped question is informative.
+\item \emph{Numeric columns} ($>30$ values): in raw questions, ``none'' codes
+become 0 and ``don't know/refused'' codes become missing. A code is cleaned
+only if it lies above every regular answer of that question, so that
+e.g.\ 7 days of exercise is not removed. Missing values are imputed with the
+training median and flagged with an indicator. Values are clipped to the
+$[0.5, 99.5]$ percentiles and standardized. We also add indicators for 10
+quantile bins, which lets the linear model learn a piecewise-constant,
+non-monotone effect of e.g.\ age or BMI.
+\end{enumerate}
+The final design matrix has 1{,}733 features plus a bias column.
+
+\section{Models and Training}
+\textbf{Basic methods.} We implemented the six required methods: least squares
+via the normal equations, ridge regression, MSE gradient descent and SGD, and
+(regularized) logistic regression with gradient descent. We use ridge
+regression (on targets in $\{-1,1\}$) and gradient-descent logistic
+regression as baselines.
+
+\textbf{Final model.} We minimize the regularized logistic loss
+\[
+\mathcal{L}(w)=\frac{1}{N}\sum_{i=1}^{N}\left[\log\!\left(1+e^{x_i^\top w}\right)-y_i x_i^\top w\right]+\lambda\lVert w\rVert^2
+\]
+with $y_i\in\{0,1\}$, leaving the bias unpenalized. Plain gradient descent
+converges slowly on 1{,}700 correlated indicator features. We therefore use
+Newton's method, $w\leftarrow w-t\,H^{-1}\nabla\mathcal{L}$ with
+$H=\frac1N X^\top\mathrm{diag}(p_i(1-p_i))X+2\lambda I$, and a backtracking
+line search on $t$. It converges in about 8 iterations ($\sim$10\,s on the
+full data). Regularization is necessary: with $\lambda=0$ the Hessian is
+singular because the one-hot blocks are collinear.
+
+\textbf{Decision threshold.} With 8.8\% positives, the usual cut-off
+$p>0.5$ predicts very few positives and gives poor F1. We sort the training
+scores and pick the threshold that maximizes training F1 exactly; it is
+$p\approx0.21$.
+
+\textbf{Evaluation protocol.} We use 5-fold cross-validation with the same
+random folds for every configuration. In each fold, the feature pipeline, the
+model and the threshold are all fitted on the four training folds and
+evaluated once on the held-out fold. We report the mean (and standard
+deviation) of F1 over folds, together with accuracy and ROC AUC.
+
+\section{Results}
+Table~\ref{tab:ablation} starts from baselines and adds one modification at a
+time. \emph{Raw} features are median-imputed, code-cleaned and standardized
+original columns.
+
+\begin{table}[htbp]
+  \centering
+  \caption{5-fold CV results. All rows except the last use the tuned threshold.}
+  \label{tab:ablation}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Configuration & F1 & Acc. & AUC \\
+    \midrule
+    Ridge regression, raw & 0.429 & 0.875 & 0.858 \\
+    Logistic, GD (300 it., $\gamma{=}0.5$), raw & 0.416 & 0.864 & 0.850 \\
+    Logistic, Newton, raw & 0.436 & 0.877 & 0.864 \\
+    \quad + drop admin columns & 0.436 & 0.880 & 0.864 \\
+    \quad + one-hot categoricals & 0.439 & 0.876 & 0.866 \\
+    \quad + quantile bins (\textbf{final}) & \textbf{0.440} & 0.880 & 0.865 \\
+    Ridge regression, final features & 0.432 & 0.876 & 0.858 \\
+    \midrule
+    Final model, threshold $p=0.5$ & 0.267 & -- & -- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Threshold.} Moving the threshold from 0.5 to the F1-optimal value is
+by far the most important choice ($+0.17$ F1). On a held-out 20\% split,
+recall rises from 0.17 to 0.55 while precision falls from 0.60 to 0.37.
+Accuracy drops from 0.916 to 0.875, which shows why accuracy alone is
+misleading under class imbalance.
+
+\textbf{Optimizer.} With the same objective, 300 steps of gradient descent
+reach only F1 0.416, compared with 0.436 for Newton's method. The gap comes
+from incomplete optimization, not from the model.
+
+\textbf{Features.} One-hot encoding and binning add $+0.004$ F1 and $+0.001$
+AUC over the raw logistic model. This is consistent across folds but
+comparable to the fold-to-fold standard deviation ($\approx0.006$). The raw
+features already capture most of the signal because many BRFSS variables are
+ordinal with a roughly monotone risk. Dropping bookkeeping columns barely
+changes performance, but it makes the model rely on health information
+rather than on survey logistics.
+
+\textbf{Logistic vs.\ least squares.} With identical features, logistic
+regression beats ridge regression by $0.008$ F1 and $0.007$ AUC. Squared loss
+penalizes confidently correct predictions and is therefore a poor surrogate
+for classification under class imbalance.
+
+\textbf{Regularization.} Sweeping $\lambda\in\{10^{-6},\dots,10^{-2}\}$, F1
+is flat (0.439--0.440) for $\lambda\in[10^{-5},10^{-4}]$. It decreases for
+stronger penalties (0.436 at $10^{-3}$, 0.422 at $10^{-2}$). We use
+$\lambda=10^{-4}$, which has the best AUC. With 1{,}700 features and over
+260k training rows, the model is far from overfitting: training F1 (0.449)
+is close to validation F1.
+
+\textbf{Test set.} Trained on all data, the model predicts 12.7\% of test
+respondents as positive. Its leaderboard score is: F1 = \emph{(fill in)},
+accuracy = \emph{(fill in)}.
+
+\section{Discussion}
+A well-optimized linear model with careful handling of survey codes and
+missingness gives a strong baseline. Most of the achievable F1 comes from
+aligning the decision rule with the metric rather than from model
+complexity. The ranking quality (AUC $\approx0.865$) changes little across
+our feature sets, which suggests the remaining error is largely irreducible
+given these self-reported answers. Natural next steps are explicit
+interactions (e.g.\ age $\times$ sex) and non-linear models; we leave them to
+future work.
+
+\end{document}

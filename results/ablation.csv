@@ -1,0 +1,9 @@
+config,f1,f1_std,accuracy,auc
+ridge | raw features,0.4286,0.0055,0.8752,0.8576
+logistic GD | raw features,0.4159,0.0124,0.8642,0.8502
+logistic Newton | raw features,0.4358,0.0058,0.8772,0.8641
++ drop admin columns,0.4362,0.0054,0.8798,0.8641
++ one-hot categoricals,0.4392,0.0056,0.8756,0.8656
++ quantile bins (full model),0.4395,0.0075,0.8801,0.8652
+full model, keep admin columns,0.4394,0.0054,0.8773,0.8651
+ridge | full features,0.4319,0.0054,0.8759,0.8579
