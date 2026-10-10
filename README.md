@@ -6,6 +6,7 @@ respondents, 8.8% positive). Only Python's standard library and NumPy are used.
 **Final model:** one-hot / quantile-binned features + L2-regularized logistic
 regression (λ = 1e-4, Newton's method) + F1-optimal decision threshold.
 5-fold CV: **F1 = 0.440 ± 0.008**, accuracy 0.880, AUC 0.865.
+AIcrowd leaderboard: **F1 = 0.447**, accuracy 0.882.
 
 ## Reproducing the submission
 
