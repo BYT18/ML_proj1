@@ -155,6 +155,19 @@ $\lambda=10^{-4}$, which has the best AUC. With 1{,}700 features and over
 260k training rows, the model is far from overfitting: training F1 (0.449)
 is close to validation F1.
 
+\textbf{Extensions that did not help.} We tried several extensions of the
+final model, none of which improved F1 beyond noise. With 5-fold CV
+(per-fold differences to the final model in parentheses), we tested
+choosing the threshold on inner out-of-fold scores instead of training
+scores ($+0.0008$; folds from $-0.002$ to $+0.003$), treating columns with
+up to 70 values as categorical ($+0.0005$), averaging models with 5, 10
+and 20 bins ($+0.0003$), and bagging 5 bootstrap models ($+0.0002$). On a
+held-out 20\% split, we also added 120 interaction features (age and sex
+times the 60 largest-weight features; F1 unchanged at 0.440, AUC $+0.0007$)
+and trained a one-hidden-layer ReLU network with Adam (64 units: 0.437;
+128--256 units with dropout: 0.41--0.42, overfitting). Averaging the network
+with logistic regression gave 0.441, again within noise.
+
 \textbf{Test set.} Trained on all data, the model predicts 12.7\% of test
 respondents as positive. On the competition leaderboard it scores
 F1 = 0.447 and accuracy = 0.882, consistent with our cross-validation
@@ -164,10 +177,9 @@ estimate ($0.440\pm0.008$).
 A well-optimized linear model with careful handling of survey codes and
 missingness gives a strong baseline. Most of the achievable F1 comes from
 aligning the decision rule with the metric rather than from model
-complexity. The ranking quality (AUC $\approx0.865$) changes little across
-our feature sets, which suggests the remaining error is largely irreducible
-given these self-reported answers. Natural next steps are explicit
-interactions (e.g.\ age $\times$ sex) and non-linear models; we leave them to
-future work.
+complexity. Ranking quality stays at AUC $\approx0.865$ across every
+feature set, the interaction features and a neural network, which suggests
+the remaining error is largely irreducible given these self-reported
+answers. Gradient-boosted trees are the main model family we did not try.
 
 \end{document}

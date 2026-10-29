@@ -27,7 +27,9 @@ The pipeline is deterministic, so `run.py` reproduces the submitted file exactly
 | `preprocessing.py` | Data loading/caching and the `FeatureBuilder` feature pipeline. |
 | `model.py` | Newton solver for regularized logistic regression, metrics (F1, accuracy, AUC), F1 threshold search, k-fold cross-validation. |
 | `experiments.py` | Baselines, ablation study and λ sweep (`python experiments.py ablation` / `lambda`); results in `results/`. |
+| `extensions.py` | Extensions that did not improve F1 (`python extensions.py cv` / `split`), see below. |
 | `run.py` | Trains the final model on all training data and writes `submission.csv`. |
+| `report/` | LaTeX source and compiled PDF of the 2-page report. |
 
 ## Pipeline
 
@@ -72,3 +74,28 @@ training data only. In cross-validation they are re-fitted inside each fold.
 λ sweep (1e-6 … 1e-2) is in `results/lambda.csv`: F1 is flat for
 λ ∈ [1e-5, 1e-4] and drops at λ = 1e-2 (0.422). With λ = 0 the Hessian is
 singular because the one-hot blocks are collinear.
+
+## Extensions that did not help
+
+None of these improved F1 beyond noise, so the final model does not use them.
+
+`python extensions.py cv`: 5-fold CV on the same folds as above, F1
+difference to the final model (mean over folds):
+
+| Extension | ΔF1 |
+|---|---|
+| Threshold chosen on inner out-of-fold scores | +0.0008 |
+| Columns with ≤ 70 values treated as categorical | +0.0005 |
+| Average of models with 5 / 10 / 20 bins | +0.0003 |
+| Bagging, 5 bootstrap models | +0.0002 |
+
+Every extension is worse than the final model on at least one fold.
+
+`python extensions.py split`: held-out 20% split (final model: F1 0.440):
+
+| Extension | F1 |
+|---|---|
+| + 120 interactions (age, sex × 60 top-weight features) | 0.440 |
+| One-hidden-layer ReLU network (64 units, Adam, 6 epochs) | 0.437 |
+| Larger networks (128–256 units, dropout, 15–20 epochs) | 0.41–0.42 |
+| 0.5 × logistic + 0.5 × network (64 units) | 0.441 |
